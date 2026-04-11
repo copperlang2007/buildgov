@@ -1,0 +1,79 @@
+# Prometheus configuration for Institutional Replit OS
+# Apply this file to your Prometheus instance with:
+#   prometheus --config.file=monitoring/prometheus.yml
+
+global:
+  scrape_interval: 15s        # How frequently to scrape targets by default
+  evaluation_interval: 15s    # How frequently to evaluate rules
+  scrape_timeout: 10s         # Timeout for scrape requests
+
+  # Labels attached to all time series scraped by this Prometheus instance
+  external_labels:
+    environment: production
+    team: platform
+
+# ── Alerting ──────────────────────────────────────────────────────────────────
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# ── Rule files ────────────────────────────────────────────────────────────────
+rule_files:
+  - "rules/alerts.yml"
+  - "rules/recording.yml"
+
+# ── Scrape configurations ─────────────────────────────────────────────────────
+scrape_configs:
+
+  # Prometheus self-monitoring
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - localhost:9090
+
+  # Application service
+  - job_name: app
+    metrics_path: /metrics
+    scrape_interval: 10s
+    static_configs:
+      - targets:
+          - app:8080
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+
+  # Node Exporter — host-level metrics
+  - job_name: node
+    static_configs:
+      - targets:
+          - node-exporter:9100
+
+  # Blackbox Exporter — external endpoint probing
+  - job_name: blackbox
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://example.com/healthz
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # Grafana self-monitoring
+  - job_name: grafana
+    static_configs:
+      - targets:
+          - grafana:3000
+
+  # Alertmanager self-monitoring
+  - job_name: alertmanager
+    static_configs:
+      - targets:
+          - alertmanager:9093

@@ -1,0 +1,54 @@
+{
+  "version": "1.0.0",
+  "autonomy": {
+    "level": "supervised",
+    "allowed_actions": [
+      "read_files",
+      "write_files",
+      "run_tests",
+      "run_linters",
+      "create_branches",
+      "open_pull_requests"
+    ],
+    "restricted_actions": [
+      "merge_pull_requests",
+      "deploy_to_production",
+      "delete_branches",
+      "modify_secrets",
+      "change_permissions"
+    ]
+  },
+  "approval_requirements": {
+    "pull_request_merge": {
+      "required_approvals": 2,
+      "require_code_owner_review": true,
+      "dismiss_stale_reviews": true,
+      "require_status_checks": true,
+      "required_status_checks": [
+        "ci / lint",
+        "ci / test",
+        "ci / security-scan"
+      ]
+    },
+    "production_deploy": {
+      "required_approvals": 1,
+      "require_manual_gate": true,
+      "notify_channels": ["#deployments", "#security"]
+    },
+    "secret_rotation": {
+      "required_approvals": 2,
+      "require_security_team": true
+    }
+  },
+  "compliance": {
+    "scan_on_push": true,
+    "block_on_critical_vulnerability": true,
+    "audit_log_retention_days": 365,
+    "require_signed_commits": false
+  },
+  "notifications": {
+    "on_approval_required": ["team-leads@example.com"],
+    "on_security_alert": ["security@example.com"],
+    "on_deploy": ["devops@example.com"]
+  }
+}
