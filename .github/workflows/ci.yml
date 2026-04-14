@@ -1,0 +1,131 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate governance.json
+        run: |
+          echo "Validating governance.json..."
+          python3 -c "import json, sys; json.load(open('governance.json')); print('governance.json is valid JSON')"
+
+      - name: Check Markdown files
+        run: |
+          echo "Checking Markdown files exist in /skills..."
+          if [ -z "$(ls -A skills/*.md 2>/dev/null)" ]; then
+            echo "ERROR: No skill markdown files found in /skills"
+            exit 1
+          fi
+          echo "Skill files found:"
+          ls skills/*.md
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate governance autonomy levels
+        run: |
+          python3 - <<'EOF'
+          import json, sys
+
+          with open("governance.json") as f:
+              gov = json.load(f)
+
+          valid_levels = {"supervised", "autonomous", "manual"}
+          level = gov.get("autonomy", {}).get("level", "")
+          if level not in valid_levels:
+              print(f"ERROR: Invalid autonomy level '{level}'. Must be one of {valid_levels}")
+              sys.exit(1)
+
+          required_fields = ["version", "autonomy", "approval_requirements", "compliance"]
+          for field in required_fields:
+              if field not in gov:
+                  print(f"ERROR: Missing required field '{field}' in governance.json")
+                  sys.exit(1)
+
+          print("governance.json structure is valid")
+          EOF
+
+      - name: Validate skill files structure
+        run: |
+          python3 - <<'EOF'
+          import os, sys
+
+          skills_dir = "skills"
+          required_sections = ["## Context", "## Triggers", "## Execution Steps", "## Outputs"]
+          errors = []
+
+          for filename in os.listdir(skills_dir):
+              if not filename.endswith(".md"):
+                  continue
+              filepath = os.path.join(skills_dir, filename)
+              content = open(filepath).read()
+              for section in required_sections:
+                  if section not in content:
+                      errors.append(f"{filename}: missing section '{section}'")
+
+          if errors:
+              for e in errors:
+                  print(f"ERROR: {e}")
+              sys.exit(1)
+
+          print("All skill files have required sections")
+          EOF
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run security scan
+        run: bash scripts/security-scan.sh
+
+  validate-monitoring:
+    name: Validate Monitoring Config
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install PyYAML
+        run: pip install pyyaml==6.0.2 --quiet
+
+      - name: Validate prometheus.yml
+        run: |
+          python3 - <<'EOF'
+          import yaml, sys
+
+          with open("monitoring/prometheus.yml") as f:
+              config = yaml.safe_load(f)
+
+          required_keys = ["global", "scrape_configs"]
+          for key in required_keys:
+              if key not in config:
+                  print(f"ERROR: Missing required key '{key}' in prometheus.yml")
+                  sys.exit(1)
+
+          print("monitoring/prometheus.yml is valid")
+          EOF
